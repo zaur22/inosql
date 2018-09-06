@@ -1,0 +1,38 @@
+@startuml
+
+@startuml
+
+interface DataBase{
+    Create(collectionName, Setter)
+    Select(collectionName, Selector)
+    Update(collectionName, Selector, Setter)
+    Delete(collectionName, Selector)
+}
+
+interface Setter{
+    Set(fieldName, interface{})
+    getAllSets() {}interface{}
+}
+
+interface Selector{
+    Compare(fieldName, operation, value interface{})
+    GetAllSelects() []Compare
+}
+
+enum operation{
+    More
+    MoreEq
+    Lesser
+    LesserEq
+    Longer
+    Equal
+}
+
+interface Compare{
+    getPair() (fieldName, operation, value interface{})
+}
+
+@enduml
+
+
+@enduml

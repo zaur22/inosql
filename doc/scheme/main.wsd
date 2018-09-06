@@ -1,0 +1,57 @@
+@startuml
+
+interface DataBase{
+    SetUniqFields(collectionName, []fieldName)
+    Create(collectionName, Setter)
+    Select(collectionName, Selector)
+    Update(collectionName, Selector, Setter)
+    Delete(collectionName, Selector)
+}
+
+interface SetterBuilder{
+    Set(fieldName, interface{})
+    getAllSets() {}interface{}
+}
+
+interface Setter{
+    getAllSets() {}interface{}
+}
+
+SetterBuilder --|> Setter
+
+interface SelectorBuilder{
+    AddCompare(fieldName, operation, value interface{})
+    SetMaxDocs(int)
+    SetSkipDocs(int)
+    SortByFields([]map[string]bool)
+    ---
+    GetMaxDocs() int
+    GetSkipDocs() int
+    GetSortFields() []map[string]bool
+    GetAllCompares() []Compare
+}
+
+interface Selector{
+    GetMaxDocs() int
+    GetSkipDocs() int
+    GetSortFields() []map[string]bool
+    GetAllSelects() []Compare
+}
+
+SelectorBuilder --|> Selector
+
+enum Operation{
+    MORE
+    MORE_EQ
+    LESSER
+    LESSER_EQ
+    LONGER
+    SHORTER
+    Equal
+}
+
+interface Compare{
+    getPair() (fieldName, Operation, value)
+}
+
+@enduml
