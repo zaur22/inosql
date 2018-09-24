@@ -231,6 +231,72 @@ func (m *Mongo) Delete(collectionName string, sel Selector) (int, error) {
 	return info.Removed, nil
 }
 
+func (m *Mongo) SetUniqFields(uniqFields map[string][]string) error {
+	for collection, newIndexFields := range uniqFields {
+		var forRemoveIndex []string
+		var forAddIndex []string
+		oldIndexes, err := m.getCollectionIndexes(collection)
+		if err != nil {
+			return err
+		}
+		for _, fieldName := range newIndexFields {
+			var isHave = false
+			for _, oldIndex := range oldIndexes {
+				if len(oldIndex.Key) != 1 {
+					return fmt.Errorf("Bad count of index key, need 1, got %v", len(oldIndex.Key))
+				}
+				fName := oldIndex.Key[0]
+				if fName == fieldName {
+					isHave = true
+					break
+				}
+			}
+			if !isHave {
+				forAddIndex = append(forAddIndex, fieldName)
+			}
+		}
+
+		for _, oldIndex := range oldIndexes {
+			var isHave = false
+			var fName = oldIndex.Key[0]
+			if fName == "_id" {
+				continue
+			}
+			for _, fieldName := range newIndexFields {
+				if fName == fieldName {
+					isHave = true
+					break
+				}
+			}
+			if !isHave {
+				forRemoveIndex = append(forRemoveIndex, fName)
+			}
+		}
+
+		if len(forRemoveIndex) != 0 {
+			err = m.removeIndexes(collection, forRemoveIndex)
+
+			if err != nil {
+				msg := fmt.Sprintf("Can't drop indexes %v", forRemoveIndex)
+				return errors.Wrap(err, msg)
+			}
+		}
+
+		for _, uniqField := range forAddIndex {
+			var index = mgo.Index{
+				Unique: true,
+				Key:    []string{uniqField},
+			}
+			err = m.DB.C(collection).EnsureIndex(index)
+			if err != nil {
+				msg := fmt.Sprintf("Can't add index %v", index)
+				return errors.Wrap(err, msg)
+			}
+		}
+	}
+	return nil
+}
+
 func getIDArr(sel []map[string]interface{}) ([]bson.ObjectId, error) {
 	var res []bson.ObjectId
 	for _, it := range sel {
@@ -390,4 +456,62 @@ func convertComparesToMongo(compares []Compare) (interface{}, error) {
 		"$and": andExpression,
 	}
 	return result, nil
+}
+
+func (m *Mongo) getCollectionIndexes(collection string) ([]mgo.Index, error) {
+	var indexes []mgo.Index
+	var result interface{}
+	var isHave = false
+	var err error
+	collectionNames, err := m.DB.CollectionNames()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, name := range collectionNames {
+		if name == collection {
+			isHave = true
+			break
+		}
+	}
+
+	if isHave {
+		indexes, err = m.DB.C(collection).Indexes()
+		if err != nil {
+			msg := fmt.Sprintf("can't get collection %s indexes", collection)
+			return nil, errors.Wrap(err, msg)
+		}
+	} else {
+		err = m.DB.Run(bson.D{{"create", collection}}, result)
+		if err != nil {
+			msg := fmt.Sprintf("can't create collection %s", collection)
+			return nil, errors.Wrap(err, msg)
+		}
+	}
+
+	return indexes, nil
+}
+
+func (m *Mongo) removeIndexes(collection string, forRemoveIndex []string) error {
+	indexes, err := m.DB.C(collection).Indexes()
+	if err != nil {
+		msg := fmt.Sprintf("Can't get indexes from collection %s", collection)
+		return errors.Wrap(err, msg)
+	}
+	for _, index := range indexes {
+		if len(index.Key) != 1 {
+			return fmt.Errorf("Unexpected len of index keys, excpected 1, got %v, index: %+v", len(index.Key), index)
+		}
+		for _, fieldName := range forRemoveIndex {
+			if fieldName == index.Key[0] {
+				err = m.DB.C(collection).DropIndexName(index.Name)
+				if err != nil {
+					msg := fmt.Sprintf("Can't remove index %s from collection %s", index.Name, collection)
+					return errors.Wrap(err, msg)
+				}
+				break
+			}
+		}
+	}
+	return nil
 }

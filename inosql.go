@@ -45,6 +45,7 @@ type DataBase interface {
 	Select(collectionName string, sel Selector) ([]map[string]interface{}, error)
 	Update(collectionName string, sel Selector, sets Setter) ([]map[string]interface{}, error)
 	Delete(collectionName string, sel Selector) (int, error)
+	SetUniqFields(map[string][]string) error
 }
 
 //Setter интерфейс для задания значения новой записи

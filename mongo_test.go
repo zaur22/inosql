@@ -467,6 +467,102 @@ func testMaxDocs(t *testing.T, db Mongo, collection string) {
 	}
 }
 
+func TestMongoSetUnique(t *testing.T) {
+	var UniqVersions = []map[string][]string{
+		{
+			"c1": {
+				"name",
+				"surname",
+				"age",
+			},
+			"c2": {
+				"age",
+			},
+			"c3": {
+				"username",
+			},
+			"c4": {},
+		},
+		{
+			"c1": {
+				"name",
+				"surname",
+			},
+			"c2": {
+				"age",
+				"name",
+			},
+			"c3": {
+				"user",
+			},
+			"c4": {
+				"hello",
+			},
+		},
+		{
+			"c1": {
+				"age",
+				"name",
+			},
+			"c2": {
+				"name",
+				"surname",
+			},
+			"c3": {},
+			"c4": {
+				"hi",
+			},
+		},
+	}
+
+	mongo, err := createMongoDB()
+	if err != nil {
+		t.Fatalf("%s", err)
+	}
+	defer testDropDB(t, mongo.DB)
+
+	for _, version := range UniqVersions {
+		err := mongo.SetUniqFields(version)
+		if err != nil {
+			t.Fatalf("Can't set unique fields: %v, error: %s", version, err.Error())
+		}
+	}
+
+	lastVersion := UniqVersions[len(UniqVersions)-1]
+
+	for collection, fields := range lastVersion {
+		indexes, err := mongo.DB.C(collection).Indexes()
+		if err != nil {
+			t.Fatalf("Can't get indexes for collection %s, return error %s", collection, err.Error())
+		}
+		var indexFieldArr []string
+		for _, i := range indexes {
+			if len(i.Key) != 1 {
+				t.Errorf("Bad len of index key arr, expected 1, got %v. array: %v", len(i.Key), i.Key)
+				continue
+			}
+			indexFieldArr = append(indexFieldArr, i.Key[0])
+		}
+
+		//к сущестующим, ещё и индекс по _id
+		if (len(fields) + 1) != len(indexFieldArr) {
+			t.Fatalf("Bad count of uniq fields for collections %s. Expected %v, got %v  \n%+v", collection, len(fields)+1, len(indexFieldArr), indexFieldArr)
+		}
+		for _, field := range fields {
+			var isHave = false
+			for _, iField := range indexFieldArr {
+				if field == iField {
+					isHave = true
+					continue
+				}
+			}
+			if !isHave {
+				t.Fatalf("Havn't field %s. Need arr %v, got %v", field, fields, indexFieldArr)
+			}
+		}
+	}
+}
+
 func createMongoDB() (Mongo, error) {
 	var m Mongo
 	session, err := mgo.Dial("localhost:27017")
